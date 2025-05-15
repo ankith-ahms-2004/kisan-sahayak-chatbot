@@ -2,8 +2,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { QrCode, Send, WhatsApp } from "lucide-react";
-import { useState } from "react";
+import { MessageSquare, QrCode, Send } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const WhatsAppIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -21,16 +21,16 @@ const WhatsAppIntegration = () => {
   };
 
   // Check if previously connected
-  useState(() => {
+  useEffect(() => {
     const connected = localStorage.getItem("whatsapp_connected") === "true";
     setIsConnected(connected);
-  });
+  }, []);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center">
-          <WhatsApp className="h-5 w-5 mr-2 text-green-500" />
+          <MessageSquare className="h-5 w-5 mr-2 text-green-500" />
           WhatsApp Integration
         </CardTitle>
         <CardDescription>
@@ -70,7 +70,7 @@ const WhatsAppIntegration = () => {
               onClick={connectToWhatsApp}
               className="w-full bg-green-600 hover:bg-green-700"
             >
-              <WhatsApp className="h-4 w-4 mr-2" />
+              <MessageSquare className="h-4 w-4 mr-2" />
               Connect to WhatsApp
             </Button>
           </div>
