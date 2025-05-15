@@ -2,14 +2,17 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquare, QrCode, Send, Upload } from "lucide-react";
+import { MessageSquare, QrCode, Send, Upload, AlertCircle } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { analyzeImageWithGemini } from "@/utils/geminiApi";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const WhatsAppIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const whatsappNumber = "8618384071";
 
@@ -27,11 +30,23 @@ const WhatsAppIntegration = () => {
   useEffect(() => {
     const connected = localStorage.getItem("whatsapp_connected") === "true";
     setIsConnected(connected);
+    
+    // Reset error state when component mounts
+    setError(null);
   }, []);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedImage(e.target.files[0]);
+      const file = e.target.files[0];
+      setSelectedImage(file);
+      setError(null); // Clear any previous errors
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -39,6 +54,16 @@ const WhatsAppIntegration = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
+  };
+
+  const validateApiKey = () => {
+    const geminiApiKey = localStorage.getItem("gemini_api_key");
+    if (!geminiApiKey) {
+      setError("Gemini API key is missing. Please add it in the settings.");
+      return false;
+    }
+    
+    return geminiApiKey;
   };
 
   const sendImageToWhatsApp = async () => {
@@ -51,7 +76,7 @@ const WhatsAppIntegration = () => {
       return;
     }
 
-    const geminiApiKey = localStorage.getItem("gemini_api_key");
+    const geminiApiKey = validateApiKey();
     if (!geminiApiKey) {
       toast({
         title: "API Key Required",
@@ -62,13 +87,15 @@ const WhatsAppIntegration = () => {
     }
 
     setIsLoading(true);
+    setError(null);
 
     try {
       // Convert image to base64
       const base64Image = await readFileAsBase64(selectedImage);
       
-      // Directly analyze the image with Gemini instead of sending to WhatsApp
-      // In a real implementation, this would use the WhatsApp Business API to send
+      console.log("Sending image for analysis...");
+      
+      // Directly analyze the image with Gemini
       const analysisResult = await analyzeImageWithGemini(base64Image, geminiApiKey);
       
       // Simulate successful WhatsApp sending and analysis
@@ -77,16 +104,18 @@ const WhatsAppIntegration = () => {
         description: `Detected: ${analysisResult.disease}. Analysis results would be sent back to the farmer via WhatsApp.`,
       });
       
-      // Clear the selected image
+      // Clear the selected image and preview
       setSelectedImage(null);
+      setImagePreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (error) {
       console.error("Error processing image:", error);
+      setError("Failed to analyze the image. Please check your API key and try again.");
       toast({
         title: "Error Processing Image",
-        description: "There was an error analyzing the image. Please try again.",
+        description: "There was an error analyzing the image. Please verify your API key is valid.",
         variant: "destructive",
       });
     } finally {
@@ -136,6 +165,14 @@ const WhatsAppIntegration = () => {
               </div>
             </div>
             
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
             {/* Demo image upload (simulates WhatsApp integration) */}
             <div className="border border-gray-200 rounded-md p-4">
               <h3 className="font-medium mb-2">Test Image Analysis</h3>
@@ -150,6 +187,18 @@ const WhatsAppIntegration = () => {
                 accept="image/*"
                 className="hidden"
               />
+              
+              {imagePreview && (
+                <div className="mb-4">
+                  <div className="rounded-md overflow-hidden border border-gray-200 w-full max-w-xs mx-auto">
+                    <img 
+                      src={imagePreview} 
+                      alt="Selected crop" 
+                      className="w-full h-auto object-cover" 
+                    />
+                  </div>
+                </div>
+              )}
               
               <div className="flex space-x-2">
                 <Button 
@@ -172,7 +221,7 @@ const WhatsAppIntegration = () => {
                 </Button>
               </div>
               
-              {selectedImage && (
+              {selectedImage && !imagePreview && (
                 <div className="mt-3 text-sm text-gray-600">
                   Selected image: {selectedImage.name}
                 </div>

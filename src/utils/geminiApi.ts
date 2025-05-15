@@ -10,6 +10,17 @@ export interface AnalysisResult {
 }
 
 /**
+ * Validates that the provided API key is properly formatted
+ * @param apiKey API key to validate
+ * @returns Boolean indicating if the key appears valid
+ */
+const validateApiKey = (apiKey: string): boolean => {
+  // Simple validation - Gemini API keys typically have a minimum length
+  // This is just a basic check and doesn't guarantee the key works
+  return apiKey && apiKey.trim().length > 20;
+};
+
+/**
  * Analyzes an image using the Gemini API to identify crop diseases
  * @param imageBase64 Base64 encoded image data
  * @param apiKey Gemini API key
@@ -20,11 +31,17 @@ export const analyzeImageWithGemini = async (
   apiKey: string
 ): Promise<AnalysisResult> => {
   try {
+    if (!validateApiKey(apiKey)) {
+      throw new Error("Invalid API key format");
+    }
+
     // Remove the data URL prefix if present
     const base64Data = imageBase64.includes(',') 
       ? imageBase64.split(',')[1] 
       : imageBase64;
 
+    console.log("Making request to Gemini API...");
+    
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -48,10 +65,22 @@ export const analyzeImageWithGemini = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error("Gemini API error response:", errorData);
+      
+      // More specific error based on API response
+      if (errorData?.error?.message?.includes("API key")) {
+        throw new Error("Invalid API key. Please check your Gemini API key in settings.");
+      }
+      throw new Error(`Gemini API error: ${response.status}. ${errorData?.error?.message || ''}`);
     }
 
     const data = await response.json();
+    
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error("Invalid response from Gemini API");
+    }
+    
     const textResponse = data.candidates[0].content.parts[0].text;
     
     // Extract JSON from the response
@@ -64,19 +93,40 @@ export const analyzeImageWithGemini = async (
       jsonStr = jsonMatch[1].trim();
     }
     
-    // Parse the JSON response
-    const analysisResult: AnalysisResult = JSON.parse(jsonStr);
-    
-    return analysisResult;
+    try {
+      // Parse the JSON response
+      const analysisResult: AnalysisResult = JSON.parse(jsonStr);
+      
+      // Validate the required fields
+      if (!analysisResult.disease || !analysisResult.description || 
+          !Array.isArray(analysisResult.preventiveMeasures) || 
+          !analysisResult.treatment || 
+          !Array.isArray(analysisResult.precautions)) {
+        throw new Error("Incomplete response from API");
+      }
+      
+      return analysisResult;
+    } catch (jsonError) {
+      console.error("Error parsing JSON response:", jsonError);
+      throw new Error("Could not parse the response from Gemini. Try again with a clearer image.");
+    }
   } catch (error) {
     console.error("Error analyzing image with Gemini:", error);
-    // Return a fallback response for error cases
+    // Return a fallback response for error cases with more specific information
     return {
       disease: "Analysis Error",
-      description: "Unable to analyze the image. Please ensure the image is clear and try again.",
-      preventiveMeasures: ["Ensure good lighting when taking photos", "Focus the camera on the affected area"],
-      treatment: "Please try again with a clearer image or provide additional details about the crop symptoms.",
-      precautions: ["Try different angles", "Include both healthy and affected parts in the image"]
+      description: error instanceof Error ? error.message : "Unknown error occurred during analysis.",
+      preventiveMeasures: [
+        "Ensure your API key is correctly set in settings", 
+        "Try with a clearer image with good lighting",
+        "Focus the camera directly on the affected plant parts"
+      ],
+      treatment: "Please verify your API key is valid and try again with a clearer image.",
+      precautions: [
+        "Use a valid Gemini API key",
+        "Include both healthy and affected parts in the image for better comparison", 
+        "Take multiple photos from different angles if needed"
+      ]
     };
   }
 };
@@ -92,6 +142,10 @@ export const analyzeTextWithGemini = async (
   apiKey: string
 ): Promise<AnalysisResult> => {
   try {
+    if (!validateApiKey(apiKey)) {
+      throw new Error("Invalid API key format");
+    }
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -128,7 +182,14 @@ export const analyzeTextWithGemini = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error("Gemini API error response:", errorData);
+      
+      // More specific error based on API response
+      if (errorData?.error?.message?.includes("API key")) {
+        throw new Error("Invalid API key. Please check your Gemini API key in settings.");
+      }
+      throw new Error(`Gemini API error: ${response.status}. ${errorData?.error?.message || ''}`);
     }
 
     const data = await response.json();
@@ -143,18 +204,22 @@ export const analyzeTextWithGemini = async (
       jsonStr = jsonMatch[1].trim();
     }
     
-    // Parse the JSON response
-    const analysisResult: AnalysisResult = JSON.parse(jsonStr);
-    
-    return analysisResult;
+    try {
+      // Parse the JSON response
+      const analysisResult: AnalysisResult = JSON.parse(jsonStr);
+      return analysisResult;
+    } catch (jsonError) {
+      console.error("Error parsing JSON response:", jsonError);
+      throw new Error("Could not parse the response from Gemini.");
+    }
   } catch (error) {
     console.error("Error analyzing text with Gemini:", error);
     return {
       disease: "Analysis Error",
-      description: "Unable to analyze your description. Please provide more details about the crop symptoms.",
-      preventiveMeasures: ["Take clear photos of affected areas", "Describe symptoms in detail"],
-      treatment: "Please try again with a more detailed description of your crop issue.",
-      precautions: ["Mention the crop type", "Describe environmental conditions"]
+      description: error instanceof Error ? error.message : "Unable to analyze your description.",
+      preventiveMeasures: ["Ensure your API key is correctly set in settings", "Provide more specific details about symptoms"],
+      treatment: "Please verify your API key is valid and try again with more details.",
+      precautions: ["Use a valid Gemini API key", "Mention the crop type", "Describe environmental conditions"]
     };
   }
 };
