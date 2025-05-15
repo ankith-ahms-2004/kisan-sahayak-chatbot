@@ -80,3 +80,81 @@ export const analyzeImageWithGemini = async (
     };
   }
 };
+
+/**
+ * Analyzes text description using the Gemini API to identify crop diseases
+ * @param textQuery User's text description of crop symptoms
+ * @param apiKey Gemini API key
+ * @returns Analysis result with disease identification and recommendations
+ */
+export const analyzeTextWithGemini = async (
+  textQuery: string,
+  apiKey: string
+): Promise<AnalysisResult> => {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              text: `You are an agricultural expert specialized in identifying crop diseases. 
+              A farmer has described the following issue: "${textQuery}"
+              
+              Based on this description, provide:
+              1) Likely disease name
+              2) Detailed description of the disease
+              3) Preventive measures
+              4) Treatment options
+              5) Future precautions
+              
+              Format your response as JSON with the following structure:
+              {
+                "disease": "Disease name",
+                "description": "Detailed description",
+                "preventiveMeasures": ["Measure 1", "Measure 2", ...],
+                "treatment": "Detailed treatment options",
+                "precautions": ["Precaution 1", "Precaution 2", ...]
+              }
+              
+              Please ensure the response is valid JSON.`
+            }
+          ]
+        }]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const textResponse = data.candidates[0].content.parts[0].text;
+    
+    // Extract JSON from the response
+    let jsonStr = textResponse;
+    
+    // Try to extract JSON if wrapped in code blocks
+    const jsonMatch = textResponse.match(/```(?:json)?([\s\S]*?)```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonStr = jsonMatch[1].trim();
+    }
+    
+    // Parse the JSON response
+    const analysisResult: AnalysisResult = JSON.parse(jsonStr);
+    
+    return analysisResult;
+  } catch (error) {
+    console.error("Error analyzing text with Gemini:", error);
+    return {
+      disease: "Analysis Error",
+      description: "Unable to analyze your description. Please provide more details about the crop symptoms.",
+      preventiveMeasures: ["Take clear photos of affected areas", "Describe symptoms in detail"],
+      treatment: "Please try again with a more detailed description of your crop issue.",
+      precautions: ["Mention the crop type", "Describe environmental conditions"]
+    };
+  }
+};

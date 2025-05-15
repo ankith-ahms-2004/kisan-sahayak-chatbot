@@ -12,7 +12,7 @@ import SettingsDialog from "@/components/SettingsDialog";
 import ApiKeyForm from "@/components/ApiKeyForm";
 import WhatsAppIntegration from "@/components/WhatsAppIntegration";
 import GeminiApiKeyForm from "@/components/GeminiApiKeyForm";
-import { AnalysisResult, analyzeImageWithGemini } from "@/utils/geminiApi";
+import { AnalysisResult, analyzeImageWithGemini, analyzeTextWithGemini } from "@/utils/geminiApi";
 
 export interface Message {
   role: "user" | "assistant";
@@ -30,10 +30,10 @@ const Index = () => {
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
-    if (!apiKey) {
+    if (!geminiApiKey) {
       toast({
         title: "API Key Required",
-        description: "Please add your Perplexity API key in settings",
+        description: "Please add your Gemini API key in settings",
         variant: "destructive",
       });
       return;
@@ -49,20 +49,27 @@ const Index = () => {
     setIsLoading(true);
     
     try {
-      // Prepare the prompt for agricultural disease analysis
-      const prompt = `You are an agricultural expert assistant. A farmer has shared the following description of their crop issue: "${userMessage}"
+      // Use Gemini API for text analysis
+      const analysisResult = await analyzeTextWithGemini(userMessage, geminiApiKey);
       
-      Analyze this information and provide:
-      1. Possible disease identification
-      2. Detailed preventive measures
-      3. Treatment options (both organic and chemical if applicable)
-      4. Future precautions to avoid recurrence
+      // Format the analysis result into a readable message
+      const formattedResponse = `
+# Analysis Results: ${analysisResult.disease}
+
+## Description
+${analysisResult.description}
+
+## Preventive Measures
+${analysisResult.preventiveMeasures.map(measure => `- ${measure}`).join('\n')}
+
+## Treatment Options
+${analysisResult.treatment}
+
+## Future Precautions
+${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
+      `;
       
-      Format your response clearly with headings and bullet points where appropriate.`;
-      
-      const response = await fetchPerplexityResponse(apiKey, prompt);
-      
-      setMessages([...newMessages, { role: "assistant" as const, content: response }]);
+      setMessages([...newMessages, { role: "assistant" as const, content: formattedResponse }]);
     } catch (error) {
       console.error("Error fetching response:", error);
       toast({
@@ -73,46 +80,6 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fetchPerplexityResponse = async (key: string, message: string) => {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an agricultural expert specializing in crop disease identification and management. Provide accurate, practical advice for farmers. Use simple language and give clear, actionable steps.'
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
-        temperature: 0.2,
-        top_p: 0.9,
-        max_tokens: 1000,
-        return_images: false,
-        return_related_questions: false,
-        search_domain_filter: ['perplexity.ai'],
-        search_recency_filter: 'month',
-        frequency_penalty: 1,
-        presence_penalty: 0
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to fetch response");
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -223,19 +190,15 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
       </header>
 
       <main className="container mx-auto flex-1 p-4 flex flex-col max-w-4xl">
-        {(!apiKey && !geminiApiKey) ? (
+        {(!geminiApiKey) ? (
           <Card className="p-6 my-4">
             <h2 className="text-xl font-bold mb-4">Welcome to Kisan Sahayak</h2>
             <p className="mb-4">
               This AI-powered assistant helps farmers identify crop diseases and provides preventive measures.
             </p>
             <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Text Analysis with Perplexity AI</h3>
-                <ApiKeyForm onSave={saveApiKey} />
-              </div>
               <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-3">Image Analysis with Gemini AI</h3>
+                <h3 className="text-lg font-semibold mb-3">Text & Image Analysis with Gemini AI</h3>
                 <GeminiApiKeyForm onSave={saveGeminiApiKey} />
               </div>
             </div>

@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 
 const WhatsAppIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
-  const whatsappNumber = "8217344757";
+  const whatsappNumber = "8618384071";
 
   const connectToWhatsApp = () => {
     // In a production environment, this would involve actual WhatsApp Business API integration
