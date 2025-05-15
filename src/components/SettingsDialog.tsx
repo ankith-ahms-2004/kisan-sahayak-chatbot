@@ -8,16 +8,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ApiKeyForm from "./ApiKeyForm";
+import GeminiApiKeyForm from "./GeminiApiKeyForm";
 
 interface SettingsDialogProps {
   apiKey: string | null;
+  geminiApiKey: string | null;
   onApiKeySave: (key: string) => void;
+  onGeminiApiKeySave: (key: string) => void;
 }
 
-const SettingsDialog = ({ apiKey, onApiKeySave }: SettingsDialogProps) => {
+const SettingsDialog = ({ apiKey, geminiApiKey, onApiKeySave, onGeminiApiKeySave }: SettingsDialogProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -31,23 +36,42 @@ const SettingsDialog = ({ apiKey, onApiKeySave }: SettingsDialogProps) => {
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Configure your API key for the Perplexity AI service.
+            Configure your API keys for AI services.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="py-4">
-          <ApiKeyForm 
-            initialValue={apiKey || ""} 
-            onSave={(key) => {
-              onApiKeySave(key);
-              setIsOpen(false);
-            }} 
-          />
-        </div>
+        <Tabs defaultValue="perplexity">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="perplexity">Text Analysis</TabsTrigger>
+            <TabsTrigger value="gemini">Image Analysis</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="perplexity" className="py-4">
+            <h3 className="text-sm font-medium mb-2">Perplexity API Key (Text Analysis)</h3>
+            <ApiKeyForm 
+              initialValue={apiKey || ""} 
+              onSave={(key) => {
+                onApiKeySave(key);
+                setIsOpen(false);
+              }} 
+            />
+          </TabsContent>
+          
+          <TabsContent value="gemini" className="py-4">
+            <h3 className="text-sm font-medium mb-2">Gemini API Key (Image Analysis)</h3>
+            <GeminiApiKeyForm 
+              initialValue={geminiApiKey || ""} 
+              onSave={(key) => {
+                onGeminiApiKeySave(key);
+                setIsOpen(false);
+              }} 
+            />
+          </TabsContent>
+        </Tabs>
         
         <div className="mt-4 text-xs text-gray-500">
           <p>
-            Note: Your API key is stored locally in your browser and is not sent to our servers.
+            Note: Your API keys are stored locally in your browser and are not sent to our servers.
           </p>
         </div>
       </DialogContent>

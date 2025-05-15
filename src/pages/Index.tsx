@@ -5,11 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Send, Loader2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/ChatMessage";
 import SettingsDialog from "@/components/SettingsDialog";
 import ApiKeyForm from "@/components/ApiKeyForm";
+import WhatsAppIntegration from "@/components/WhatsAppIntegration";
+import GeminiApiKeyForm from "@/components/GeminiApiKeyForm";
+import { AnalysisResult, analyzeImageWithGemini } from "@/utils/geminiApi";
 
 export interface Message {
   role: "user" | "assistant";
@@ -21,6 +24,8 @@ const Index = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem("perplexity_api_key"));
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(localStorage.getItem("gemini_api_key"));
+  const [activeTab, setActiveTab] = useState<"text" | "whatsapp">("text");
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -38,7 +43,7 @@ const Index = () => {
     setInput("");
     
     // Add user message to chat
-    const newMessages = [...messages, { role: "user", content: userMessage }];
+    const newMessages = [...messages, { role: "user" as const, content: userMessage }];
     setMessages(newMessages);
     
     setIsLoading(true);
@@ -57,7 +62,7 @@ const Index = () => {
       
       const response = await fetchPerplexityResponse(apiKey, prompt);
       
-      setMessages([...newMessages, { role: "assistant", content: response }]);
+      setMessages([...newMessages, { role: "assistant" as const, content: response }]);
     } catch (error) {
       console.error("Error fetching response:", error);
       toast({
@@ -122,8 +127,78 @@ const Index = () => {
     setApiKey(key);
     toast({
       title: "API Key Saved",
-      description: "Your API key has been saved successfully",
+      description: "Your Perplexity API key has been saved successfully",
     });
+  };
+
+  const saveGeminiApiKey = (key: string) => {
+    localStorage.setItem("gemini_api_key", key);
+    setGeminiApiKey(key);
+    toast({
+      title: "API Key Saved",
+      description: "Your Gemini API key has been saved successfully",
+    });
+  };
+
+  const handleImageAnalysis = async (imageBase64: string) => {
+    if (!geminiApiKey) {
+      toast({
+        title: "Gemini API Key Required",
+        description: "Please add your Gemini API key in settings to analyze images",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    // Add a placeholder for the user's image message
+    const userMessage: Message = {
+      role: "user",
+      content: "I've uploaded an image of my crop for analysis."
+    };
+    
+    setMessages([...messages, userMessage]);
+    
+    try {
+      const analysisResult: AnalysisResult = await analyzeImageWithGemini(imageBase64, geminiApiKey);
+      
+      // Format the analysis result into a readable message
+      const formattedResponse = `
+# Analysis Results: ${analysisResult.disease}
+
+## Description
+${analysisResult.description}
+
+## Preventive Measures
+${analysisResult.preventiveMeasures.map(measure => `- ${measure}`).join('\n')}
+
+## Treatment Options
+${analysisResult.treatment}
+
+## Future Precautions
+${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
+      `;
+      
+      setMessages(current => [...current, { 
+        role: "assistant", 
+        content: formattedResponse 
+      }]);
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze the image. Please try again with a clearer image.",
+        variant: "destructive",
+      });
+      
+      setMessages(current => [...current, { 
+        role: "assistant", 
+        content: "I couldn't analyze the image properly. Please make sure the image is clear and shows the affected plant parts well." 
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -137,77 +212,114 @@ const Index = () => {
             </span>
           </h1>
           <div className="flex items-center space-x-2">
-            <SettingsDialog apiKey={apiKey} onApiKeySave={saveApiKey} />
+            <SettingsDialog 
+              apiKey={apiKey} 
+              geminiApiKey={geminiApiKey} 
+              onApiKeySave={saveApiKey} 
+              onGeminiApiKeySave={saveGeminiApiKey} 
+            />
           </div>
         </div>
       </header>
 
       <main className="container mx-auto flex-1 p-4 flex flex-col max-w-4xl">
-        {!apiKey ? (
+        {(!apiKey && !geminiApiKey) ? (
           <Card className="p-6 my-4">
             <h2 className="text-xl font-bold mb-4">Welcome to Kisan Sahayak</h2>
             <p className="mb-4">
               This AI-powered assistant helps farmers identify crop diseases and provides preventive measures.
             </p>
-            <ApiKeyForm onSave={saveApiKey} />
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Text Analysis with Perplexity AI</h3>
+                <ApiKeyForm onSave={saveApiKey} />
+              </div>
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-3">Image Analysis with Gemini AI</h3>
+                <GeminiApiKeyForm onSave={saveGeminiApiKey} />
+              </div>
+            </div>
           </Card>
         ) : (
           <>
-            <Card className="flex-1 mb-4 overflow-hidden">
-              <ScrollArea className="h-[60vh]">
-                <div className="p-4">
-                  {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                      <img
-                        src="/lovable-uploads/3cdf4985-15f5-4462-b92c-b9447f6f13ad.png"
-                        alt="Agricultural technology"
-                        className="w-64 h-auto mb-4 rounded-lg opacity-70"
-                      />
-                      <h2 className="text-xl font-bold text-green-800 mb-2">
-                        Welcome to Kisan Sahayak
-                      </h2>
-                      <p className="text-gray-600 max-w-md">
-                        Describe your crop's symptoms or upload a photo to get disease identification
-                        and treatment recommendations from our AI assistant.
-                      </p>
-                    </div>
-                  ) : (
-                    messages.map((message, index) => (
-                      <ChatMessage key={index} message={message} />
-                    ))
-                  )}
-                  {isLoading && (
-                    <div className="flex items-center text-gray-500 p-4">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Analyzing...
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </Card>
-
-            <div className="relative">
-              <Textarea
-                placeholder="Describe crop symptoms or issues (e.g., 'Yellow spots on wheat leaves with wilting')"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={3}
-                className="pr-12 resize-none"
-              />
+            <div className="flex space-x-4 mb-4">
               <Button
-                size="icon"
-                onClick={handleSendMessage}
-                disabled={isLoading || !input.trim()}
-                className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-green-600 hover:bg-green-700"
+                variant={activeTab === "text" ? "default" : "outline"}
+                className={activeTab === "text" ? "bg-green-600 hover:bg-green-700" : ""}
+                onClick={() => setActiveTab("text")}
               >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
+                Text Chat
+              </Button>
+              <Button
+                variant={activeTab === "whatsapp" ? "default" : "outline"}
+                className={activeTab === "whatsapp" ? "bg-green-600 hover:bg-green-700" : ""}
+                onClick={() => setActiveTab("whatsapp")}
+              >
+                WhatsApp Integration
               </Button>
             </div>
+
+            {activeTab === "text" ? (
+              <>
+                <Card className="flex-1 mb-4 overflow-hidden">
+                  <ScrollArea className="h-[60vh]">
+                    <div className="p-4">
+                      {messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                          <img
+                            src="/lovable-uploads/3cdf4985-15f5-4462-b92c-b9447f6f13ad.png"
+                            alt="Agricultural technology"
+                            className="w-64 h-auto mb-4 rounded-lg opacity-70"
+                          />
+                          <h2 className="text-xl font-bold text-green-800 mb-2">
+                            Welcome to Kisan Sahayak
+                          </h2>
+                          <p className="text-gray-600 max-w-md">
+                            Describe your crop's symptoms or upload a photo to get disease identification
+                            and treatment recommendations from our AI assistant.
+                          </p>
+                        </div>
+                      ) : (
+                        messages.map((message, index) => (
+                          <ChatMessage key={index} message={message} />
+                        ))
+                      )}
+                      {isLoading && (
+                        <div className="flex items-center text-gray-500 p-4">
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analyzing...
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </Card>
+
+                <div className="relative">
+                  <Textarea
+                    placeholder="Describe crop symptoms or issues (e.g., 'Yellow spots on wheat leaves with wilting')"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={3}
+                    className="pr-12 resize-none"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={isLoading || !input.trim()}
+                    className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-green-600 hover:bg-green-700"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <WhatsAppIntegration />
+            )}
           </>
         )}
       </main>
