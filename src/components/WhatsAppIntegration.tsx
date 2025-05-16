@@ -1,10 +1,14 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquare, QrCode, Send, Upload, AlertCircle, X } from "lucide-react";
+import { MessageSquare, QrCode, Send, Upload, AlertCircle, X, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { analyzeImageWithGemini } from "@/utils/geminiApi";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Default Gemini API key - Hardcoded to ensure it's always available
+const DEFAULT_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";
 
 interface WhatsAppIntegrationProps {
   defaultApiKey?: string;
@@ -89,19 +93,22 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
     }
   };
 
-  const getApiKey = (): string | null => {
+  const getApiKey = (): string => {
+    // First check localStorage
     const storedKey = localStorage.getItem("gemini_api_key");
-    return storedKey || defaultApiKey || null;
-  };
-
-  const validateApiKey = () => {
-    const geminiApiKey = getApiKey();
-    if (!geminiApiKey) {
-      setError("Gemini API key is missing. Please add it in the settings.");
-      return false;
+    
+    // If stored key exists and is non-empty, use it
+    if (storedKey && storedKey.trim()) {
+      return storedKey;
     }
     
-    return geminiApiKey;
+    // Next, use the provided defaultApiKey prop if available
+    if (defaultApiKey && defaultApiKey.trim()) {
+      return defaultApiKey;
+    }
+    
+    // Finally, fall back to the hardcoded default key
+    return DEFAULT_API_KEY;
   };
 
   const sendImageToWhatsApp = async () => {
@@ -114,16 +121,9 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
       return;
     }
 
-    const geminiApiKey = validateApiKey();
-    if (!geminiApiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please add your Gemini API key in settings",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    const apiKey = getApiKey();
+    console.log("Using API key:", apiKey ? apiKey.substring(0, 10) + "..." : "none");
+    
     setIsLoading(true);
     setError(null);
     setAnalysisResult(null);
@@ -135,7 +135,7 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
       console.log("Sending image for analysis...");
       
       // Directly analyze the image with Gemini
-      const analysis = await analyzeImageWithGemini(base64Image, geminiApiKey);
+      const analysis = await analyzeImageWithGemini(base64Image, apiKey);
       
       // Format the analysis result for display
       const formattedResult = `
@@ -273,8 +273,17 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
                   className="w-full bg-green-600 hover:bg-green-700"
                   disabled={!selectedImage || isLoading}
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  {isLoading ? 'Analyzing...' : 'Analyze Image'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Analyze Image
+                    </>
+                  )}
                 </Button>
               </div>
               

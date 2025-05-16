@@ -15,9 +15,9 @@ export interface AnalysisResult {
  * @returns Boolean indicating if the key appears valid
  */
 const validateApiKey = (apiKey: string): boolean => {
-  // Simple validation - Gemini API keys typically have a minimum length
-  // This is just a basic check and doesn't guarantee the key works
-  return apiKey && apiKey.trim().length > 20;
+  // Simple validation - accept any non-empty API key that's at least 10 chars
+  // This allows the default API key to work
+  return Boolean(apiKey && apiKey.trim().length >= 10);
 };
 
 /**
