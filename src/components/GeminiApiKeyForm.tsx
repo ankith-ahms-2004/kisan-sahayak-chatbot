@@ -1,10 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { DEFAULT_GEMINI_API_KEY } from "@/utils/geminiApi";
 
 interface GeminiApiKeyFormProps {
   initialValue?: string;
@@ -12,12 +13,20 @@ interface GeminiApiKeyFormProps {
 }
 
 const GeminiApiKeyForm = ({ initialValue = "", onSave }: GeminiApiKeyFormProps) => {
-  const [apiKey, setApiKey] = useState(initialValue);
+  const [apiKey, setApiKey] = useState(initialValue || DEFAULT_GEMINI_API_KEY);
+  
+  useEffect(() => {
+    // Initialize with default key if no initial value is provided
+    if (!initialValue && DEFAULT_GEMINI_API_KEY) {
+      setApiKey(DEFAULT_GEMINI_API_KEY);
+    }
+  }, [initialValue]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.trim()) {
-      onSave(apiKey.trim());
+    const keyToSave = apiKey.trim() || DEFAULT_GEMINI_API_KEY;
+    if (keyToSave) {
+      onSave(keyToSave);
     }
   };
 
@@ -26,8 +35,11 @@ const GeminiApiKeyForm = ({ initialValue = "", onSave }: GeminiApiKeyFormProps) 
       <Alert className="bg-blue-50 border-blue-200">
         <Info className="h-4 w-4 text-blue-500" />
         <AlertDescription className="text-sm text-blue-700">
-          You need a Gemini API key to use this service. 
-          Get one from <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">Google AI Studio</a>.
+          {apiKey === DEFAULT_GEMINI_API_KEY ? (
+            <>A default API key is being used. You can continue with this key or add your own.</>
+          ) : (
+            <>You can use the default key or get your own from <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">Google AI Studio</a>.</>
+          )}
         </AlertDescription>
       </Alert>
       
@@ -46,7 +58,6 @@ const GeminiApiKeyForm = ({ initialValue = "", onSave }: GeminiApiKeyFormProps) 
       <Button 
         type="submit" 
         className="w-full bg-green-600 hover:bg-green-700"
-        disabled={!apiKey.trim()}
       >
         Save API Key
       </Button>

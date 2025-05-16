@@ -9,14 +9,17 @@ export interface AnalysisResult {
   precautions: string[];
 }
 
+// Default API key to use when none is provided
+export const DEFAULT_GEMINI_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";
+
 /**
  * Validates that the provided API key is properly formatted
  * @param apiKey API key to validate
  * @returns Boolean indicating if the key appears valid
  */
 const validateApiKey = (apiKey: string): boolean => {
-  // Simple validation - accept any non-empty API key that's at least 10 chars
-  return Boolean(apiKey && apiKey.trim().length >= 10);
+  // Accept any non-empty string as valid (since we're using a hardcoded key as backup)
+  return Boolean(apiKey && apiKey.trim());
 };
 
 /**
@@ -27,11 +30,14 @@ const validateApiKey = (apiKey: string): boolean => {
  */
 export const analyzeImageWithGemini = async (
   imageBase64: string,
-  apiKey: string
+  apiKey: string = DEFAULT_GEMINI_API_KEY
 ): Promise<AnalysisResult> => {
   try {
-    if (!validateApiKey(apiKey)) {
-      throw new Error("Invalid API key format");
+    // Use the provided API key or fall back to the default
+    const keyToUse = apiKey?.trim() ? apiKey.trim() : DEFAULT_GEMINI_API_KEY;
+    
+    if (!validateApiKey(keyToUse)) {
+      throw new Error("No valid API key available");
     }
 
     // Remove the data URL prefix if present
@@ -39,10 +45,10 @@ export const analyzeImageWithGemini = async (
       ? imageBase64.split(',')[1] 
       : imageBase64;
 
-    console.log("Making request to Gemini API with updated model...");
+    console.log("Making request to Gemini API with model gemini-2.0-flash...");
     
-    // Updated to use gemini-1.5-flash model instead of the deprecated gemini-pro-vision
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Updated to use gemini-2.0-flash model as requested
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keyToUse}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -77,6 +83,7 @@ export const analyzeImageWithGemini = async (
 
     const data = await response.json();
     
+    // Handle response parsing
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
       throw new Error("Invalid response from Gemini API");
     }
@@ -139,15 +146,18 @@ export const analyzeImageWithGemini = async (
  */
 export const analyzeTextWithGemini = async (
   textQuery: string,
-  apiKey: string
+  apiKey: string = DEFAULT_GEMINI_API_KEY
 ): Promise<AnalysisResult> => {
   try {
-    if (!validateApiKey(apiKey)) {
-      throw new Error("Invalid API key format");
+    // Use the provided API key or fall back to the default
+    const keyToUse = apiKey?.trim() ? apiKey.trim() : DEFAULT_GEMINI_API_KEY;
+    
+    if (!validateApiKey(keyToUse)) {
+      throw new Error("No valid API key available");
     }
 
-    // Updated to use gemini-1.5-flash model instead of gemini-pro
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Updated to use gemini-2.0-flash model as requested
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keyToUse}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

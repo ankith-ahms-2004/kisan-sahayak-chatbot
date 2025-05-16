@@ -10,7 +10,7 @@ import ChatMessage from "@/components/ChatMessage";
 import SettingsDialog from "@/components/SettingsDialog";
 import WhatsAppIntegration from "@/components/WhatsAppIntegration";
 import GeminiApiKeyForm from "@/components/GeminiApiKeyForm";
-import { AnalysisResult, analyzeImageWithGemini, analyzeTextWithGemini } from "@/utils/geminiApi";
+import { AnalysisResult, analyzeImageWithGemini, analyzeTextWithGemini, DEFAULT_GEMINI_API_KEY } from "@/utils/geminiApi";
 
 // Default Gemini API key
 const DEFAULT_GEMINI_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";

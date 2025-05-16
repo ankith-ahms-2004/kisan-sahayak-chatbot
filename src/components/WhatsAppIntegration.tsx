@@ -1,10 +1,9 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { MessageSquare, QrCode, Send, Upload, AlertCircle, X, Loader2, Settings } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { analyzeImageWithGemini } from "@/utils/geminiApi";
+import { analyzeImageWithGemini, DEFAULT_GEMINI_API_KEY } from "@/utils/geminiApi";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 
@@ -26,6 +25,12 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   const whatsappNumber = "8618384071";
   const [manualApiKey, setManualApiKey] = useState<string>("");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+
+  // Initialize manual API key from localStorage or default
+  useEffect(() => {
+    const storedKey = localStorage.getItem("gemini_api_key") || defaultApiKey || DEFAULT_GEMINI_API_KEY;
+    setManualApiKey(storedKey);
+  }, [defaultApiKey]);
 
   // Clear data when component unmounts
   useEffect(() => {
@@ -114,7 +119,7 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
     }
     
     // Finally, fall back to the hardcoded default key
-    return DEFAULT_API_KEY;
+    return DEFAULT_GEMINI_API_KEY;
   };
 
   const saveApiKey = () => {
@@ -131,7 +136,8 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   const toggleApiKeyInput = () => {
     setShowApiKeyInput(!showApiKeyInput);
     if (!showApiKeyInput) {
-      const currentKey = localStorage.getItem("gemini_api_key") || defaultApiKey || DEFAULT_API_KEY;
+      // When opening the input, initialize with current key
+      const currentKey = localStorage.getItem("gemini_api_key") || defaultApiKey || DEFAULT_GEMINI_API_KEY;
       setManualApiKey(currentKey);
     }
   };
