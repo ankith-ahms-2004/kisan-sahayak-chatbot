@@ -1,20 +1,46 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquare, QrCode, Send, Upload, AlertCircle } from "lucide-react";
+import { MessageSquare, QrCode, Send, Upload, AlertCircle, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { analyzeImageWithGemini } from "@/utils/geminiApi";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const WhatsAppIntegration = () => {
+interface WhatsAppIntegrationProps {
+  defaultApiKey?: string;
+}
+
+const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const whatsappNumber = "8618384071";
+
+  // Clear data when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any selected images when leaving the component
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      setSelectedImage(null);
+      setImagePreview(null);
+      setAnalysisResult(null);
+    };
+  }, []);
+
+  // Check if previously connected (just for this session)
+  useEffect(() => {
+    const connected = sessionStorage.getItem("whatsapp_connected") === "true";
+    setIsConnected(connected);
+    
+    // Reset error state when component mounts
+    setError(null);
+  }, []);
 
   const connectToWhatsApp = () => {
     // Simulate connection to WhatsApp Business API
@@ -23,30 +49,25 @@ const WhatsAppIntegration = () => {
       description: "Your application is now connected to WhatsApp. Farmers can send images to the provided number.",
     });
     setIsConnected(true);
-    localStorage.setItem("whatsapp_connected", "true");
+    // Use sessionStorage instead of localStorage to keep connection just for this session
+    sessionStorage.setItem("whatsapp_connected", "true");
   };
-
-  // Check if previously connected
-  useEffect(() => {
-    const connected = localStorage.getItem("whatsapp_connected") === "true";
-    setIsConnected(connected);
-    
-    // Reset error state when component mounts
-    setError(null);
-  }, []);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      // Clear any previous object URLs to prevent memory leaks
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      
       const file = e.target.files[0];
       setSelectedImage(file);
-      setError(null); // Clear any previous errors
+      setError(null);
+      setAnalysisResult(null);
       
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Create preview using URL.createObjectURL for better performance
+      const objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
     }
   };
 
@@ -56,8 +77,25 @@ const WhatsAppIntegration = () => {
     }
   };
 
+  const clearImage = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setSelectedImage(null);
+    setImagePreview(null);
+    setAnalysisResult(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const getApiKey = (): string | null => {
+    const storedKey = localStorage.getItem("gemini_api_key");
+    return storedKey || defaultApiKey || null;
+  };
+
   const validateApiKey = () => {
-    const geminiApiKey = localStorage.getItem("gemini_api_key");
+    const geminiApiKey = getApiKey();
     if (!geminiApiKey) {
       setError("Gemini API key is missing. Please add it in the settings.");
       return false;
@@ -88,6 +126,7 @@ const WhatsAppIntegration = () => {
 
     setIsLoading(true);
     setError(null);
+    setAnalysisResult(null);
 
     try {
       // Convert image to base64
@@ -96,20 +135,31 @@ const WhatsAppIntegration = () => {
       console.log("Sending image for analysis...");
       
       // Directly analyze the image with Gemini
-      const analysisResult = await analyzeImageWithGemini(base64Image, geminiApiKey);
+      const analysis = await analyzeImageWithGemini(base64Image, geminiApiKey);
       
-      // Simulate successful WhatsApp sending and analysis
+      // Format the analysis result for display
+      const formattedResult = `
+# Analysis Results: ${analysis.disease}
+
+## Description
+${analysis.description}
+
+## Preventive Measures
+${analysis.preventiveMeasures.map(measure => `- ${measure}`).join('\n')}
+
+## Treatment Options
+${analysis.treatment}
+
+## Future Precautions
+${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
+      `;
+      
+      setAnalysisResult(formattedResult);
+      
       toast({
         title: "Image Analysis Complete",
-        description: `Detected: ${analysisResult.disease}. Analysis results would be sent back to the farmer via WhatsApp.`,
+        description: `Detected: ${analysis.disease}`,
       });
-      
-      // Clear the selected image and preview
-      setSelectedImage(null);
-      setImagePreview(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     } catch (error) {
       console.error("Error processing image:", error);
       setError("Failed to analyze the image. Please check your API key and try again.");
@@ -189,13 +239,20 @@ const WhatsAppIntegration = () => {
               />
               
               {imagePreview && (
-                <div className="mb-4">
+                <div className="mb-4 relative">
                   <div className="rounded-md overflow-hidden border border-gray-200 w-full max-w-xs mx-auto">
                     <img 
                       src={imagePreview} 
                       alt="Selected crop" 
                       className="w-full h-auto object-cover" 
                     />
+                    <button 
+                      onClick={clearImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      aria-label="Remove image"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               )}
@@ -224,6 +281,17 @@ const WhatsAppIntegration = () => {
               {selectedImage && !imagePreview && (
                 <div className="mt-3 text-sm text-gray-600">
                   Selected image: {selectedImage.name}
+                </div>
+              )}
+              
+              {analysisResult && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-100 rounded-md text-sm markdown">
+                  <h3 className="text-lg font-medium mb-2">Analysis Results</h3>
+                  <div className="prose prose-sm max-w-none">
+                    <pre className="whitespace-pre-wrap bg-white p-3 rounded border border-gray-200 overflow-auto max-h-96">
+                      {analysisResult}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>

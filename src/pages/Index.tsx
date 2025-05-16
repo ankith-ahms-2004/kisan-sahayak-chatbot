@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +13,9 @@ import WhatsAppIntegration from "@/components/WhatsAppIntegration";
 import GeminiApiKeyForm from "@/components/GeminiApiKeyForm";
 import { AnalysisResult, analyzeImageWithGemini, analyzeTextWithGemini } from "@/utils/geminiApi";
 
+// Default Gemini API key
+const DEFAULT_GEMINI_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";
+
 export interface Message {
   role: "user" | "assistant";
   content: string;
@@ -24,21 +26,43 @@ const Index = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem("perplexity_api_key"));
-  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(localStorage.getItem("gemini_api_key"));
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(
+    localStorage.getItem("gemini_api_key") || DEFAULT_GEMINI_API_KEY
+  );
   const [activeTab, setActiveTab] = useState<"text" | "whatsapp">("text");
+
+  // Clear user data when component unmounts or tab/window closes
+  useEffect(() => {
+    // Save the current API keys
+    const savedGeminiKey = geminiApiKey;
+    
+    const handleUnload = () => {
+      // Remove user messages from localStorage - keeping only API keys
+      localStorage.removeItem("user_messages");
+      
+      // Restore just the API keys
+      if (savedGeminiKey) {
+        localStorage.setItem("gemini_api_key", savedGeminiKey);
+      }
+      if (apiKey) {
+        localStorage.setItem("perplexity_api_key", apiKey);
+      }
+    };
+    
+    window.addEventListener("beforeunload", handleUnload);
+    
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      handleUnload();
+    };
+  }, [geminiApiKey, apiKey]);
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
-    if (!geminiApiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please add your Gemini API key in settings",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Use default API key if not set
+    const apiKeyToUse = geminiApiKey || DEFAULT_GEMINI_API_KEY;
+    
     const userMessage = input.trim();
     setInput("");
     
@@ -50,7 +74,7 @@ const Index = () => {
     
     try {
       // Use Gemini API for text analysis
-      const analysisResult = await analyzeTextWithGemini(userMessage, geminiApiKey);
+      const analysisResult = await analyzeTextWithGemini(userMessage, apiKeyToUse);
       
       // Format the analysis result into a readable message
       const formattedResponse = `
@@ -108,14 +132,8 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
   };
 
   const handleImageAnalysis = async (imageBase64: string) => {
-    if (!geminiApiKey) {
-      toast({
-        title: "Gemini API Key Required",
-        description: "Please add your Gemini API key in settings to analyze images",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Use default API key if not set
+    const apiKeyToUse = geminiApiKey || DEFAULT_GEMINI_API_KEY;
     
     setIsLoading(true);
     
@@ -128,7 +146,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
     setMessages([...messages, userMessage]);
     
     try {
-      const analysisResult: AnalysisResult = await analyzeImageWithGemini(imageBase64, geminiApiKey);
+      const analysisResult: AnalysisResult = await analyzeImageWithGemini(imageBase64, apiKeyToUse);
       
       // Format the analysis result into a readable message
       const formattedResponse = `
@@ -181,7 +199,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
           <div className="flex items-center space-x-2">
             <SettingsDialog 
               apiKey={apiKey} 
-              geminiApiKey={geminiApiKey} 
+              geminiApiKey={geminiApiKey || DEFAULT_GEMINI_API_KEY} 
               onApiKeySave={saveApiKey} 
               onGeminiApiKeySave={saveGeminiApiKey} 
             />
@@ -190,7 +208,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
       </header>
 
       <main className="container mx-auto flex-1 p-4 flex flex-col max-w-4xl">
-        {(!geminiApiKey) ? (
+        {(!geminiApiKey && !DEFAULT_GEMINI_API_KEY) ? (
           <Card className="p-6 my-4">
             <h2 className="text-xl font-bold mb-4">Welcome to Kisan Sahayak</h2>
             <p className="mb-4">
@@ -281,7 +299,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
                 </div>
               </>
             ) : (
-              <WhatsAppIntegration />
+              <WhatsAppIntegration defaultApiKey={DEFAULT_GEMINI_API_KEY} />
             )}
           </>
         )}

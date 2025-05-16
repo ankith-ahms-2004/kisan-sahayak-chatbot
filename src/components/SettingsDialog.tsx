@@ -40,7 +40,7 @@ const SettingsDialog = ({ apiKey, geminiApiKey, onApiKeySave, onGeminiApiKeySave
           </DialogDescription>
         </DialogHeader>
         
-        <Tabs defaultValue="perplexity">
+        <Tabs defaultValue="gemini">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="perplexity">Text Analysis</TabsTrigger>
             <TabsTrigger value="gemini">Image Analysis</TabsTrigger>
@@ -59,6 +59,11 @@ const SettingsDialog = ({ apiKey, geminiApiKey, onApiKeySave, onGeminiApiKeySave
           
           <TabsContent value="gemini" className="py-4">
             <h3 className="text-sm font-medium mb-2">Gemini API Key (Image Analysis)</h3>
+            {geminiApiKey && geminiApiKey.startsWith("AIzaSy") ? (
+              <div className="mb-3 text-sm text-green-600">
+                Default API key is being used. You can override it below if needed.
+              </div>
+            ) : null}
             <GeminiApiKeyForm 
               initialValue={geminiApiKey || ""} 
               onSave={(key) => {
