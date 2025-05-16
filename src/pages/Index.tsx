@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,8 +77,19 @@ const Index = () => {
       // Use Gemini API for text analysis
       const analysisResult = await analyzeTextWithGemini(userMessage, apiKeyToUse);
       
-      // Format the analysis result into a readable message
-      const formattedResponse = `
+      // Check if this is likely a disease analysis or a general question
+      const isDiseaseQuery = userMessage.toLowerCase().includes("crop") || 
+        userMessage.toLowerCase().includes("plant") || 
+        userMessage.toLowerCase().includes("disease") ||
+        userMessage.toLowerCase().includes("farm") ||
+        userMessage.toLowerCase().includes("pest") ||
+        userMessage.toLowerCase().includes("symptom");
+      
+      let formattedResponse = "";
+      
+      if (isDiseaseQuery) {
+        // Format the analysis result into a readable structured message for disease queries
+        formattedResponse = `
 # Analysis Results: ${analysisResult.disease}
 
 ## Description
@@ -91,7 +103,11 @@ ${analysisResult.treatment}
 
 ## Future Precautions
 ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
-      `;
+        `;
+      } else {
+        // For general questions, just use the description as the response
+        formattedResponse = analysisResult.description;
+      }
       
       setMessages([...newMessages, { role: "assistant" as const, content: formattedResponse }]);
     } catch (error) {
@@ -256,8 +272,8 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
                             Welcome to Kisan Sahayak
                           </h2>
                           <p className="text-gray-600 max-w-md">
-                            Describe your crop's symptoms or upload a photo to get disease identification
-                            and treatment recommendations from our AI assistant.
+                            Describe your crop's symptoms or ask any farming questions to get disease identification,
+                            treatment recommendations, and advice from our AI assistant.
                           </p>
                         </div>
                       ) : (
@@ -277,7 +293,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
 
                 <div className="relative">
                   <Textarea
-                    placeholder="Describe crop symptoms or issues (e.g., 'Yellow spots on wheat leaves with wilting')"
+                    placeholder="Ask any farming questions or describe crop symptoms (e.g., 'Yellow spots on wheat leaves with wilting' or 'What's the best time to plant tomatoes?')"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
