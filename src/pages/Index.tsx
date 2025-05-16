@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/ChatMessage";
 import SettingsDialog from "@/components/SettingsDialog";
-import ApiKeyForm from "@/components/ApiKeyForm";
 import WhatsAppIntegration from "@/components/WhatsAppIntegration";
-import GeminiApiKeyForm from "@/components/GeminiApiKeyForm";
 import { AnalysisResult, analyzeImageWithGemini, analyzeTextWithGemini } from "@/utils/geminiApi";
 
 // Default Gemini API key

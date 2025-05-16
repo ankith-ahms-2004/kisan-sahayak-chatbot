@@ -2,10 +2,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquare, QrCode, Send, Upload, AlertCircle, X, Loader2 } from "lucide-react";
+import { MessageSquare, QrCode, Send, Upload, AlertCircle, X, Loader2, Settings } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { analyzeImageWithGemini } from "@/utils/geminiApi";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 
 // Default Gemini API key - Hardcoded to ensure it's always available
 const DEFAULT_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";
@@ -23,6 +24,8 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const whatsappNumber = "8618384071";
+  const [manualApiKey, setManualApiKey] = useState<string>("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   // Clear data when component unmounts
   useEffect(() => {
@@ -94,10 +97,13 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   };
 
   const getApiKey = (): string => {
-    // First check localStorage
-    const storedKey = localStorage.getItem("gemini_api_key");
+    // First check manual entry if available
+    if (manualApiKey && manualApiKey.trim()) {
+      return manualApiKey.trim();
+    }
     
-    // If stored key exists and is non-empty, use it
+    // Next check localStorage
+    const storedKey = localStorage.getItem("gemini_api_key");
     if (storedKey && storedKey.trim()) {
       return storedKey;
     }
@@ -109,6 +115,25 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
     
     // Finally, fall back to the hardcoded default key
     return DEFAULT_API_KEY;
+  };
+
+  const saveApiKey = () => {
+    if (manualApiKey && manualApiKey.trim()) {
+      localStorage.setItem("gemini_api_key", manualApiKey.trim());
+      toast({
+        title: "API Key Saved",
+        description: "Your Gemini API key has been saved for this session",
+      });
+      setShowApiKeyInput(false);
+    }
+  };
+
+  const toggleApiKeyInput = () => {
+    setShowApiKeyInput(!showApiKeyInput);
+    if (!showApiKeyInput) {
+      const currentKey = localStorage.getItem("gemini_api_key") || defaultApiKey || DEFAULT_API_KEY;
+      setManualApiKey(currentKey);
+    }
   };
 
   const sendImageToWhatsApp = async () => {
@@ -192,15 +217,47 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <MessageSquare className="h-5 w-5 mr-2 text-green-500" />
-          WhatsApp Integration
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center">
+            <MessageSquare className="h-5 w-5 mr-2 text-green-500" />
+            WhatsApp Integration
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={toggleApiKeyInput}
+            className="flex items-center"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            API Key
+          </Button>
         </CardTitle>
         <CardDescription>
           Enable farmers to send crop images directly via WhatsApp for instant disease analysis
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {showApiKeyInput && (
+          <div className="mb-4 p-4 border rounded-md bg-gray-50">
+            <h3 className="text-sm font-medium mb-2">Enter Gemini API Key</h3>
+            <div className="flex space-x-2">
+              <Input
+                type="text"
+                placeholder="Enter Gemini API Key"
+                value={manualApiKey}
+                onChange={(e) => setManualApiKey(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={saveApiKey} disabled={!manualApiKey.trim()}>
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Get a key from <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google AI Studio</a>
+            </p>
+          </div>
+        )}
+        
         {isConnected ? (
           <div className="space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-md p-4 flex items-center">
