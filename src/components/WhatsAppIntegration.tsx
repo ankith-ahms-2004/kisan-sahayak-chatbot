@@ -1,17 +1,27 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { MessageSquare, QrCode, Send, Upload, AlertCircle, X, Loader2, Settings } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { analyzeImageWithGemini, DEFAULT_GEMINI_API_KEY } from "@/utils/geminiApi";
+import { analyzeImageWithGemini, analyzeTextWithGemini, DEFAULT_GEMINI_API_KEY } from "@/utils/geminiApi";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Default Gemini API key - Hardcoded to ensure it's always available
 const DEFAULT_API_KEY = "AIzaSyAgliKnRhVVdoW-2bgMFcvN4fMYLSBSqJ0";
 
 interface WhatsAppIntegrationProps {
   defaultApiKey?: string;
+}
+
+interface ChatMessage {
+  sender: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  isImage?: boolean;
 }
 
 const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
@@ -25,7 +35,10 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
   const whatsappNumber = "8618384071";
   const [manualApiKey, setManualApiKey] = useState<string>("");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [messageInput, setMessageInput] = useState<string>("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  
   // Initialize manual API key from localStorage or default
   useEffect(() => {
     const storedKey = localStorage.getItem("gemini_api_key") || defaultApiKey || DEFAULT_GEMINI_API_KEY;
@@ -52,7 +65,23 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
     
     // Reset error state when component mounts
     setError(null);
+    
+    // Add initial welcome message if connected
+    if (connected && chatMessages.length === 0) {
+      setChatMessages([{
+        sender: 'assistant',
+        content: "Welcome to Kisan Sahayak WhatsApp service! You can send images of your crops or ask questions about farming. How can I help you today?",
+        timestamp: new Date()
+      }]);
+    }
   }, []);
+  
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages]);
 
   const connectToWhatsApp = () => {
     // Simulate connection to WhatsApp Business API
@@ -63,6 +92,13 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
     setIsConnected(true);
     // Use sessionStorage instead of localStorage to keep connection just for this session
     sessionStorage.setItem("whatsapp_connected", "true");
+    
+    // Add initial welcome message
+    setChatMessages([{
+      sender: 'assistant',
+      content: "Welcome to Kisan Sahayak WhatsApp service! You can send images of your crops or ask questions about farming. How can I help you today?",
+      timestamp: new Date()
+    }]);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,6 +116,14 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
       // Create preview using URL.createObjectURL for better performance
       const objectUrl = URL.createObjectURL(file);
       setImagePreview(objectUrl);
+      
+      // Add a message to the chat showing the uploaded image
+      setChatMessages([...chatMessages, {
+        sender: 'user',
+        content: objectUrl,
+        timestamp: new Date(),
+        isImage: true
+      }]);
     }
   };
 
@@ -166,6 +210,13 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
       
       console.log("Sending image for analysis...");
       
+      // Add a loading message to the chat
+      setChatMessages([...chatMessages, {
+        sender: 'assistant',
+        content: "Analyzing your image...",
+        timestamp: new Date()
+      }]);
+      
       // Directly analyze the image with Gemini
       const analysis = await analyzeImageWithGemini(base64Image, apiKey);
       
@@ -188,13 +239,31 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
       
       setAnalysisResult(formattedResult);
       
+      // Update the chat with the analysis results
+      setChatMessages([...chatMessages.filter(msg => msg.content !== "Analyzing your image..."), {
+        sender: 'assistant',
+        content: formattedResult,
+        timestamp: new Date()
+      }]);
+      
       toast({
         title: "Image Analysis Complete",
         description: `Detected: ${analysis.disease}`,
       });
+      
+      // Clear the image after successful analysis
+      clearImage();
     } catch (error) {
       console.error("Error processing image:", error);
       setError("Failed to analyze the image. Please check your API key and try again.");
+      
+      // Update the chat with the error
+      setChatMessages([...chatMessages.filter(msg => msg.content !== "Analyzing your image..."), {
+        sender: 'assistant',
+        content: "Sorry, I couldn't analyze that image. Please make sure it clearly shows the plant issues and try again.",
+        timestamp: new Date()
+      }]);
+      
       toast({
         title: "Error Processing Image",
         description: "There was an error analyzing the image. Please verify your API key is valid.",
@@ -219,6 +288,101 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
+  };
+  
+  const handleSendMessage = async () => {
+    if (!messageInput.trim()) return;
+    
+    const userMessage = messageInput.trim();
+    setMessageInput("");
+    
+    // Add user message to chat
+    const updatedMessages = [...chatMessages, {
+      sender: 'user',
+      content: userMessage,
+      timestamp: new Date()
+    }];
+    
+    setChatMessages(updatedMessages);
+    setIsLoading(true);
+    
+    try {
+      // Add a typing indicator
+      setChatMessages([...updatedMessages, {
+        sender: 'assistant',
+        content: "Thinking...",
+        timestamp: new Date()
+      }]);
+      
+      // Get API key
+      const apiKey = getApiKey();
+      
+      // Use Gemini API for text analysis
+      const analysisResult = await analyzeTextWithGemini(userMessage, apiKey);
+      
+      // Check if this is likely a disease analysis or a general question
+      const isDiseaseQuery = userMessage.toLowerCase().includes("crop") || 
+        userMessage.toLowerCase().includes("plant") || 
+        userMessage.toLowerCase().includes("disease") ||
+        userMessage.toLowerCase().includes("farm") ||
+        userMessage.toLowerCase().includes("pest") ||
+        userMessage.toLowerCase().includes("symptom");
+      
+      let formattedResponse = "";
+      
+      if (isDiseaseQuery) {
+        // Format the analysis result into a readable structured message for disease queries
+        formattedResponse = `
+# Analysis Results: ${analysisResult.disease}
+
+## Description
+${analysisResult.description}
+
+## Preventive Measures
+${analysisResult.preventiveMeasures.map(measure => `- ${measure}`).join('\n')}
+
+## Treatment Options
+${analysisResult.treatment}
+
+## Future Precautions
+${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
+        `;
+      } else {
+        // For general questions, just use the description as the response
+        formattedResponse = analysisResult.description;
+      }
+      
+      // Update chat with the response (remove the typing indicator)
+      setChatMessages([...updatedMessages, {
+        sender: 'assistant',
+        content: formattedResponse,
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      console.error("Error fetching response:", error);
+      
+      // Update chat with error message (remove the typing indicator)
+      setChatMessages([...updatedMessages, {
+        sender: 'assistant',
+        content: "Sorry, I couldn't process your request. Please try again.",
+        timestamp: new Date()
+      }]);
+      
+      toast({
+        title: "Error",
+        description: "Failed to get a response. Please check your API key and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
   };
 
   return (
@@ -287,86 +451,102 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
               </Alert>
             )}
             
-            {/* Demo image upload (simulates WhatsApp integration) */}
-            <div className="border border-gray-200 rounded-md p-4">
-              <h3 className="font-medium mb-2">Test Image Analysis</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Simulate the WhatsApp image analysis process with a test image:
-              </p>
-              
-              <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleImageSelect} 
-                accept="image/*"
-                className="hidden"
-              />
-              
-              {imagePreview && (
-                <div className="mb-4 relative">
-                  <div className="rounded-md overflow-hidden border border-gray-200 w-full max-w-xs mx-auto">
-                    <img 
-                      src={imagePreview} 
-                      alt="Selected crop" 
-                      className="w-full h-auto object-cover" 
-                    />
-                    <button 
-                      onClick={clearImage}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                      aria-label="Remove image"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex space-x-2">
-                <Button 
-                  onClick={triggerFileSelect}
-                  variant="outline" 
-                  className="w-full"
-                  disabled={isLoading}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {selectedImage ? 'Change Image' : 'Select Image'}
-                </Button>
-                
-                <Button 
-                  onClick={sendImageToWhatsApp}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={!selectedImage || isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Analyze Image
-                    </>
-                  )}
-                </Button>
+            {/* WhatsApp Chat Interface */}
+            <div className="border border-gray-200 rounded-md overflow-hidden">
+              <div className="bg-green-600 p-3 text-white">
+                <h3 className="font-medium">Kisan Sahayak WhatsApp</h3>
               </div>
               
-              {selectedImage && !imagePreview && (
-                <div className="mt-3 text-sm text-gray-600">
-                  Selected image: {selectedImage.name}
+              <ScrollArea className="h-[350px] p-4">
+                <div className="space-y-4">
+                  {chatMessages.map((message, index) => (
+                    <div key={index} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div 
+                        className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                          message.sender === 'user' 
+                            ? 'bg-green-100 text-gray-800' 
+                            : 'bg-white border border-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {message.isImage ? (
+                          <img 
+                            src={message.content} 
+                            alt="Uploaded crop" 
+                            className="max-w-full h-auto rounded" 
+                          />
+                        ) : message.content === "Thinking..." || message.content === "Analyzing your image..." ? (
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>{message.content}</span>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap prose prose-sm max-w-none">
+                            {message.content}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500 mt-1">
+                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
                 </div>
-              )}
+              </ScrollArea>
               
-              {analysisResult && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-100 rounded-md text-sm markdown">
-                  <h3 className="text-lg font-medium mb-2">Analysis Results</h3>
-                  <div className="prose prose-sm max-w-none">
-                    <pre className="whitespace-pre-wrap bg-white p-3 rounded border border-gray-200 overflow-auto max-h-96">
-                      {analysisResult}
-                    </pre>
-                  </div>
-                </div>
-              )}
+              <div className="border-t p-3 flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={triggerFileSelect}
+                  disabled={isLoading}
+                >
+                  <Upload className="h-5 w-5 text-green-600" />
+                </Button>
+                
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleImageSelect} 
+                  accept="image/*"
+                  className="hidden"
+                />
+                
+                <Textarea
+                  placeholder="Type a message"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="flex-1 min-h-[40px] resize-none"
+                  rows={1}
+                />
+                
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={handleSendMessage}
+                  disabled={isLoading && !selectedImage}
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+                
+                {selectedImage && (
+                  <Button
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={sendImageToWhatsApp}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : "Analyze Image"}
+                  </Button>
+                )}
+              </div>
             </div>
             
             <div className="text-sm text-gray-500">
