@@ -154,6 +154,7 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
 
     const apiKey = getApiKey();
     console.log("Using API key:", apiKey ? apiKey.substring(0, 10) + "..." : "none");
+    console.log("Using model: gemini-2.0-flash");
     
     setIsLoading(true);
     setError(null);
