@@ -212,7 +212,7 @@ const WhatsAppIntegration = ({ defaultApiKey }: WhatsAppIntegrationProps) => {
       
       // Add a loading message to the chat
       setChatMessages([...chatMessages, {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: "Analyzing your image...",
         timestamp: new Date()
       }]);
@@ -241,7 +241,7 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
       
       // Update the chat with the analysis results
       setChatMessages([...chatMessages.filter(msg => msg.content !== "Analyzing your image..."), {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: formattedResult,
         timestamp: new Date()
       }]);
@@ -259,7 +259,7 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
       
       // Update the chat with the error
       setChatMessages([...chatMessages.filter(msg => msg.content !== "Analyzing your image..."), {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: "Sorry, I couldn't analyze that image. Please make sure it clearly shows the plant issues and try again.",
         timestamp: new Date()
       }]);
@@ -298,7 +298,7 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
     
     // Add user message to chat
     const updatedMessages = [...chatMessages, {
-      sender: 'user',
+      sender: 'user' as const,
       content: userMessage,
       timestamp: new Date()
     }];
@@ -309,7 +309,7 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
     try {
       // Add a typing indicator
       setChatMessages([...updatedMessages, {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: "Thinking...",
         timestamp: new Date()
       }]);
@@ -320,7 +320,7 @@ ${analysis.precautions.map(precaution => `- ${precaution}`).join('\n')}
       // Use Gemini API for text analysis
       const analysisResult = await analyzeTextWithGemini(userMessage, apiKey);
       
-      // Check if this is likely a disease analysis or a general question
+      // Check if this is likely a disease query or a general question
       const isDiseaseQuery = userMessage.toLowerCase().includes("crop") || 
         userMessage.toLowerCase().includes("plant") || 
         userMessage.toLowerCase().includes("disease") ||
@@ -354,7 +354,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
       
       // Update chat with the response (remove the typing indicator)
       setChatMessages([...updatedMessages, {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: formattedResponse,
         timestamp: new Date()
       }]);
@@ -363,7 +363,7 @@ ${analysisResult.precautions.map(precaution => `- ${precaution}`).join('\n')}
       
       // Update chat with error message (remove the typing indicator)
       setChatMessages([...updatedMessages, {
-        sender: 'assistant',
+        sender: 'assistant' as const,
         content: "Sorry, I couldn't process your request. Please try again.",
         timestamp: new Date()
       }]);
